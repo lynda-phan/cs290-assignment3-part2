@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<head>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+	<script src="gists.json"></script>
+	<script>
+        function File(data) {
+            this.filename = data.filename;
+            this.language = data.language;
+        }
+
+        function Gist(data) {
+            this.id = data.id;
+            this.description = data.description;
+            this.files = [];
+
+            if (data.hasOwnProperty("files")) {
+                for (var file in data.files) {
+                    if (data.files.hasOwnProperty(file)) {
+                        this.files.push(new File(data.files[file]));
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+	<h1>Search Parameters</h1>
+	<div class="search">
+		<form id="search-gists" action="#">
+		<fieldset>	
+		<legend><h3>Please select a language:</h3></legend>
+			<input type="checkbox" name="language" value="Python"> Python<br>
+			<input type="checkbox" name="language" value="JSON"> JSON<br>
+			<input type="checkbox" name="language" value="JavaScript"> JavaScript<br>
+			<input type="checkbox" name="language" value="SQL"> SQL<br>
+		<h3>How many pages do you want to view:</h3>
+		<select>
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+		</select>
+		<br /><br />
+		<input type="submit" name="submit" value="SUBMIT">	
+	</fieldset>	
+	</form><br />
+	</div>
+	<h1>Search Results</h1>
+	<div class="result">
+		<!-- search result info will go here -->
+	</div> 		
+</body>
+<footer>
+    <script>
+        $("#search-gists").submit(function(event) {
+            // $.get("https://api.github.com/gists/public?page=5", function(data) {
+            //   $(".result").html("results");
+
+            //   for (var i = 0; i < data.length; i++) {
+            //     console.log(data[i]);
+            //   }
+            // });
+
+            // $.getJSON("test.json", function(json) {
+            //     console.log(json);
+            // });
+
+            // console.log(testGists);
+
+            var gists = [];
+
+            for (var i = 0; i < testGists.length; i++) {
+                gists.push(new Gist(testGists[i]));
+            }
+
+            console.log(gists);
+
+            event.preventDefault();
+        });
+    </script>
+</footer>
+</html> 
