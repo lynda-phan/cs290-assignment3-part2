@@ -1,11 +1,20 @@
 <!DOCTYPE html>
+<html>
 <head>
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-	<script src="gists.json"></script>
-	<script>
+    <script>
         function File(data) {
             this.filename = data.filename;
             this.language = data.language;
+        }
+
+        File.prototype.containsLanguage = function(languages) {
+            for (var i = 0; i < languages.length; i++) {
+                if (languages[i] === this.language) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         function Gist(data) {
@@ -21,63 +30,412 @@
                 }
             }
         }
+
+        Gist.prototype.filesCount = function() {
+            return this.files.length;
+        }
+
+        Gist.prototype.hasLanguages = function(arrayOfLanguages) {
+            for (var i = 0; i < this.filesCount(); i++) {
+                if (this.files[i].containsLanguage(arrayOfLanguages)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        Gist.prototype.getLanguages = function() {
+            var languages = [];
+
+            for (var i = 0; i < this.filesCount(); i++) {
+                languages.push(this.files[i].language);
+            }
+
+            return languages;
+        }
+
+        Gist.prototype.getLanguagesToString = function() {
+            var languages = this.getLanguages();
+
+            var languageString = "";
+
+            if (languages.length > 0) {
+                languageString = languages.join(", ");
+            }
+
+            return languageString
+        }
+
+        function SearchParameters(formDataArray) {
+            this.languages = [];
+            this.pages = 0;
+
+            for (var property in formDataArray) {
+                if (formDataArray.hasOwnProperty(property)) {
+                    kv = formDataArray[property];
+
+                    switch (kv.name) {
+                        case "languages":
+                            this.languages.push(kv.value);
+                            break;
+                        case "pages":
+                            this.pages = kv.value;
+                            break;
+                    }
+                }
+            }
+        }
     </script>
 </head>
 <body>
-	<h1>Search Parameters</h1>
-	<div class="search">
-		<form id="search-gists" action="#">
-		<fieldset>	
-		<legend><h3>Please select a language:</h3></legend>
-			<input type="checkbox" name="language" value="Python"> Python<br>
-			<input type="checkbox" name="language" value="JSON"> JSON<br>
-			<input type="checkbox" name="language" value="JavaScript"> JavaScript<br>
-			<input type="checkbox" name="language" value="SQL"> SQL<br>
-		<h3>How many pages do you want to view:</h3>
-		<select>
-			<option value="1">1</option>
-			<option value="2">2</option>
-			<option value="3">3</option>
-			<option value="4">4</option>
-			<option value="5">5</option>
-		</select>
-		<br /><br />
-		<input type="submit" name="submit" value="SUBMIT">	
-	</fieldset>	
-	</form><br />
-	</div>
-	<h1>Search Results</h1>
-	<div class="result">
-		<!-- search result info will go here -->
-	</div> 		
+    <h1>Search Gists</h1>
+    <div class="search-parameters">
+        <form id="search-gists" action="#">
+        <fieldset>
+        <legend><h3>Please select languages:</h3></legend>
+            <input type="checkbox" name="languages" value="Python"> Python<br>
+            <input type="checkbox" name="languages" value="JSON"> JSON<br>
+            <input type="checkbox" name="languages" value="JavaScript"> JavaScript<br>
+            <input type="checkbox" name="languages" value="SQL"> SQL<br>
+        <h3>How many pages do you want to view:</h3>
+        <select name="pages">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+        </select>
+        <br /><br />
+        <input type="submit" value="Search">
+    </fieldset>
+    </form><br />
+    </div>
+ 
+    <h1>Favorite Gists <span><a id="clear-gists" href="#">clear</a></h1>
+    <div>
+        <table>
+            <thead>
+                <tr>
+                    <td>id</td>
+                    <td>languages</td>
+                    <td>description</td>
+                </tr>
+            </thead>
+            <tbody id="favorite-gists">
+            </tbody>
+        </table>
+    </div>
+ 
+    <h1>Search Results</h1>
+    <div>
+        <table>
+            <thead>
+                <tr>
+                    <td>id</td>
+                    <td>languages</td>
+                    <td>description</td>
+                    <td>action</td>
+                </tr>
+            </thead>
+            <tbody id="search-results">
+            </tbody>
+        </table>
+    </div>
 </body>
 <footer>
     <script>
-        $("#search-gists").submit(function(event) {
-            // $.get("https://api.github.com/gists/public?page=5", function(data) {
-            //   $(".result").html("results");
-
-            //   for (var i = 0; i < data.length; i++) {
-            //     console.log(data[i]);
-            //   }
-            // });
-
-            // $.getJSON("test.json", function(json) {
-            //     console.log(json);
-            // });
-
-            // console.log(testGists);
+        function convertJsonToGistObjects(gistsJson) {
+            if (typeof gistsJson === "string") {
+                gistObjects = JSON.parse(gistsJson);
+            }
 
             var gists = [];
 
-            for (var i = 0; i < testGists.length; i++) {
-                gists.push(new Gist(testGists[i]));
+            for (var i = 0; i < gistObjects.length; i++) {
+                gists.push(new Gist(gistObjects[i]));
             }
 
-            console.log(gists);
+            return gists;
+        }
 
-            event.preventDefault();
+        /**
+         *  https://developer.mozilla.org/en-US/docs/Traversing_an_HTML_table_with_JavaScript_and_DOM_Interfaces
+         */
+        function createGistRow(gist, action) {
+            var row = document.createElement("tr");
+
+            var rowId = document.createAttribute("id");
+            rowId.value = gist.id;
+            row.setAttributeNode(rowId);
+
+            var id = document.createElement("td");
+            var idText = document.createTextNode(gist.id);
+            id.appendChild(idText);
+            row.appendChild(id);
+
+            var languages = document.createElement("td");
+            var languagesText = "";
+
+            var languagesText = document.createTextNode(gist.getLanguagesToString());
+            languages.appendChild(languagesText);
+            row.appendChild(languages);
+
+            var description = document.createElement("td");
+            var descriptionText = document.createTextNode(gist.description);
+            description.appendChild(descriptionText);
+            row.appendChild(description);
+
+            if (action) {
+                var saveButton = document.createElement("button");
+                var saveButtonText = document.createTextNode("Save");
+
+                var classAttr = document.createAttribute("class");
+                classAttr.value = "save-gist";
+                saveButton.setAttributeNode(classAttr);
+
+                var dataIdAttr = document.createAttribute("data-id");
+                dataIdAttr.value = gist.id;
+                saveButton.setAttributeNode(dataIdAttr);
+                saveButton.appendChild(saveButtonText);
+
+                row.appendChild(saveButton);
+            }
+
+            return row;
+        }
+
+        function addGistToAnchor(anchor, gist, action) {
+            var row = createGistRow(gist, action);
+            anchor.appendChild(row);
+        }
+
+        function generateGistsTable(id, gists, action) {
+            action = action || false;
+
+            var anchor = document.getElementById(id);
+
+            for (var i = 0; i < gists.length; i++) {
+                addGistToAnchor(anchor, gists[i], action);
+            }
+        }
+
+        function containsGist(id, gists) {
+            for (var i = 0; i < gists.length; i++) {
+                if (id === gists[i].id) {
+                    return i;
+                }
+            }
+
+            return false;
+        }
+
+        function getGist(id, gists) {
+            var gistIndex = containsGist(id, gists);
+
+            if (gistIndex !== false) {
+                return gists[gistIndex];
+            }
+
+            return false;
+        }
+
+        /**
+         *  LocalStorage References:
+         *      - http://diveintohtml5.info/storage.html
+         *      - http://htmldog.com/guides/javascript/advanced/localstorage/
+         *      - https://developer.mozilla.org/en-US/docs/Web/Guide/API/DOM/Storage
+         */
+
+        function supportsLocalStorage() {
+            try {
+                return 'localStorage' in window && window['localStorage'] !== null;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function clearLocalStorageGists() {
+            if (supportsLocalStorage()) {
+                localStorage.clear();
+            }
+
+            return false;
+        }
+
+        function saveGistToLocalStorage(gist) {
+            if (supportsLocalStorage()) {
+                var localGists = localStorage.getItem("gists");
+
+                if (localGists === null) {
+                    var gists = [];
+                    gists.push(gist);
+                    localStorage.setItem("gists", JSON.stringify(gists));
+                } else {
+                    gists = JSON.parse(localGists);
+
+                    if (containsGist(gist.id, gists) === false) {
+                        gists.push(gist);
+                        localStorage.setItem("gists", JSON.stringify(gists));
+                    }
+                }
+            }
+        }
+
+        function getGistsFromLocalStorage() {
+            if (supportsLocalStorage()) {
+                var gists = [];
+                var localGists = localStorage["gists"];
+
+                if (typeof localGists !== 'undefined') {
+                    return convertJsonToGistObjects(localGists);
+                }
+            }
+
+            return false;
+        }
+
+        function loadFavoriteGists(anchor) {
+            gists = getGistsFromLocalStorage();
+
+            if (gists !== false && gists.length > 0) {
+                generateGistsTable(anchor, gists);
+            }
+        }
+
+        function filterOutFavoriteGists(gists) {
+            var localGists = getGistsFromLocalStorage();
+
+            for (var i = 0; i < localGists.length; i++) {
+                var gistIndex = containsGist(localGists[i].id, gists);
+
+                if (gistIndex !== false) {
+                    gists.splice(gistIndex, 1);
+                }
+            }
+        }
+
+        function filterByLanguages(gists, languages) {
+            var gist;
+
+            if (languages.length > 0) {
+                for(var i = gists.length - 1; i >= 0; i--) {
+                    gist = gists[i];
+
+                    if (gist.hasLanguages(languages) === false) {
+                        gists.splice(i, 1);
+                    }
+                }
+            }
+        }
+
+        /**
+         *  http://stackoverflow.com/questions/3955229/remove-all-child-elements-of-a-dom-node-in-javascript
+         */
+        function removeChildDOMElements(id) {
+            var parentNode = document.getElementById(id);
+            while (parentNode.firstChild) {
+                parentNode.removeChild(parentNode.firstChild);
+            }
+        }
+
+        /**
+         *  Inspiration:
+         *      - http://onwebdev.blogspot.com/2011/05/serializing-form-without-jquery.html
+         */
+        function serializeFormDataIntoArray(formId) {
+            var form = document.getElementById(formId);
+            var formElements = form.elements;
+
+            var formDataArray = [];
+
+            for (var i = 0; i < formElements.length; i++) {
+                var formElement = formElements[i];
+                var type = formElement.type;
+                var name = formElement.name;
+                var value = formElement.value;
+
+                switch (type) {
+                    case "checkbox":
+                        // If checkbox is not checked, move on
+                        if (!formElement.checked) {
+                            break;
+                        }
+                    case "select-one":
+                        formDataArray.push({name: name, value: value});
+                        break;
+                }
+            }
+
+            return formDataArray;
+        }
+
+        /**
+         *  Reference: http://ajaxpatterns.org/XMLHttpRequest_Call
+         */
+        function getAJAX(url, callback) {
+            var xhReq = new XMLHttpRequest();
+
+            xhReq.open("GET", url, false);
+            xhReq.send(null);
+
+            callback(xhReq.responseText);
+        }
+
+        /**
+         *  http://toddmotto.com/attaching-event-handlers-to-dynamically-created-javascript-elements/
+         *  http://html5doctor.com/html5-custom-data-attributes/
+         */
+        function setUpClickEventForSavingGists(gists) {
+            var saveGistOnClick = function () {
+                var gistId = this.getAttribute('data-id');
+                var gist = getGist(gistId, gists);
+
+                removeChildDOMElements(gistId);
+
+                saveGistToLocalStorage(gist);
+
+                var anchor = document.getElementById('favorite-gists');
+                addGistToAnchor(anchor, gist);
+            }
+
+            var buttons = document.getElementsByClassName("save-gist");
+
+            for (var i = 0; i < buttons.length; i++) {
+                var button = buttons[i];
+                button.onclick = saveGistOnClick;
+            }
+        }
+
+        document.getElementById('clear-gists').onclick = function() {
+            removeChildDOMElements("favorite-gists");
+            clearLocalStorageGists();
+        }
+
+        document.getElementById('search-gists').onsubmit = function() {
+            var formData = serializeFormDataIntoArray("search-gists");
+            var searchParams = new SearchParameters(formData);
+
+            removeChildDOMElements("search-results");
+
+            var perPage = (searchParams.pages * 30);
+
+            getAJAX("https://api.github.com/gists/public?page=1&per_page=" + perPage, function(data) {
+                var gists = convertJsonToGistObjects(data);
+
+                filterOutFavoriteGists(gists);
+                filterByLanguages(gists, searchParams.languages);
+
+                generateGistsTable("search-results", gists, true);
+                setUpClickEventForSavingGists(gists);
+            });
+
+            return false;
+        }
+
+        document.addEventListener("DOMContentLoaded", function(event) {
+          loadFavoriteGists("favorite-gists");
         });
     </script>
 </footer>
-</html> 
+</html>
